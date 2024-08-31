@@ -1,0 +1,47 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - app-network
+
+  django:
+    build:
+      context: .
+    container_name: django
+    # command: tail -f /dev/null
+    command: gunicorn project.wsgi:application --bind 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - rabbitmq
+    environment:
+      - DEBUG=True
+      - DJANGO_SETTINGS_MODULE=project.settings
+    networks:
+      - app-network
+  celery:
+    build:
+      context: .
+    container_name: celery
+    command: celery -A project worker --loglevel INFO
+    depends_on:
+      - rabbitmq
+      - django
+    environment:
+      - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
+    networks:
+      - app-network
+
+volumes:
+  rabbitmq_data:
+
+networks:
+  app-network:
+    driver: bridge
